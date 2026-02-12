@@ -1,14 +1,11 @@
 /* ===== LEADERBOARD MODULE ===== */
 const Leaderboard = (() => {
-  const STORAGE_KEY = 'tds_leaderboard';
 
   function getData() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    } catch { return {}; }
+    return App.getData('leaderboard') || {};
   }
   function setData(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    App.setData('leaderboard', data);
   }
 
   function addPoints(rollNo, pts, reason) {
@@ -31,7 +28,7 @@ const Leaderboard = (() => {
 
   function resetLeaderboard() {
     if (confirm('Reset the entire leaderboard? This cannot be undone.')) {
-      localStorage.removeItem(STORAGE_KEY);
+      App.setData('leaderboard', {});
       App.toast('Leaderboard reset', 'info');
       App.route();
     }

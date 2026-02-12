@@ -1,7 +1,7 @@
 /* ===== AUTH MODULE ===== */
 const Auth = (() => {
     const ADMIN_ROLL = 'mitzig01';
-    const ROLL_REGEX = /^2[1-5]f[1-3][0-5]{6}$/i;
+    const ROLL_REGEX = /^2[1-5]f[1-3]\d{4,8}$/i;
     const SESSION_KEY = 'tds_user';
 
     function validate(roll) {

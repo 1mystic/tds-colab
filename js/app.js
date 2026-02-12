@@ -1,6 +1,6 @@
 /* ===== APP CORE : Router + Data Layer ===== */
 const App = (() => {
-    /* --- Config --- */
+    /* --- Default Config --- */
     const CONFIG = {
         ga: {
             1: { name: 'GA 1', questions: 37 },
@@ -17,81 +17,137 @@ const App = (() => {
         links: [],
     };
 
-    const STORAGE_KEYS = {
-        submissions: 'tds_submissions',
-        bulk: 'tds_bulk',
-        leaderboard: 'tds_leaderboard',
-        config: 'tds_config',
+    /* --- Dual-Mode Storage: Server API (primary) + localStorage (fallback) --- */
+    const LS_KEY = 'tds_store';
+    let _store = {
+        config: JSON.parse(JSON.stringify(CONFIG)),
+        submissions: {},
+        bulk: {},
+        leaderboard: {},
     };
+    let _serverAvailable = false;
 
-    /* --- Data Layer --- */
-    function getData(key) {
+    function loadFromLocalStorage() {
         try {
-            return JSON.parse(localStorage.getItem(STORAGE_KEYS[key])) || {};
-        } catch { return {}; }
+            const saved = JSON.parse(localStorage.getItem(LS_KEY));
+            if (saved && saved.config) return saved;
+        } catch { }
+        return null;
+    }
+
+    function saveToLocalStorage() {
+        try { localStorage.setItem(LS_KEY, JSON.stringify(_store)); } catch { }
+    }
+
+    function ensureStoreFields() {
+        if (!_store.config) _store.config = JSON.parse(JSON.stringify(CONFIG));
+        if (!_store.config.roe) _store.config.roe = { enabled: false, questions: 0 };
+        if (!_store.config.links) _store.config.links = [];
+        if (!_store.submissions) _store.submissions = {};
+        if (!_store.bulk) _store.bulk = {};
+        if (!_store.leaderboard) _store.leaderboard = {};
+    }
+
+    async function loadFromServer() {
+        try {
+            const res = await fetch('/api/data');
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.config) {
+                    _store = data;
+                    _serverAvailable = true;
+                    ensureStoreFields();
+                    saveToLocalStorage(); // cache locally
+                    return;
+                }
+            }
+        } catch { }
+        // Fallback: try localStorage
+        _serverAvailable = false;
+        const local = loadFromLocalStorage();
+        if (local) {
+            _store = local;
+        }
+        ensureStoreFields();
+        console.info(_serverAvailable ? 'Data loaded from server' : 'Using localStorage (server unavailable)');
+    }
+
+    function syncToServer() {
+        saveToLocalStorage(); // always cache locally
+        if (_serverAvailable) {
+            fetch('/api/data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(_store),
+            }).catch(() => { _serverAvailable = false; });
+        }
+    }
+
+    /* --- Data Layer (reads from in-memory, writes sync to both) --- */
+    function getData(key) {
+        return _store[key] || {};
     }
     function setData(key, data) {
-        localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(data));
+        _store[key] = data;
+        syncToServer();
     }
 
     function getConfig() {
-        const saved = getData('config');
-        if (saved && saved.ga) {
-            // Ensure new fields exist for older saved configs
-            if (!saved.roe) saved.roe = { enabled: false, questions: 0 };
-            if (!saved.links) saved.links = [];
-            return saved;
+        const cfg = _store.config;
+        if (cfg && cfg.ga) {
+            if (!cfg.roe) cfg.roe = { enabled: false, questions: 0 };
+            if (!cfg.links) cfg.links = [];
+            return cfg;
         }
         return JSON.parse(JSON.stringify(CONFIG));
     }
     function saveConfig(cfg) {
-        setData('config', cfg);
+        _store.config = cfg;
+        syncToServer();
     }
 
     function getSubmissions(sectionKey) {
-        const all = getData('submissions');
+        const all = _store.submissions || {};
         return all[sectionKey] || [];
     }
     function addSubmission(sectionKey, submission) {
-        const all = getData('submissions');
-        if (!all[sectionKey]) all[sectionKey] = [];
+        if (!_store.submissions) _store.submissions = {};
+        if (!_store.submissions[sectionKey]) _store.submissions[sectionKey] = [];
         submission.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         submission.timestamp = new Date().toISOString();
-        all[sectionKey].unshift(submission);
-        setData('submissions', all);
+        _store.submissions[sectionKey].unshift(submission);
+        syncToServer();
         Leaderboard.addPoints(submission.rollNo, 10, sectionKey);
         // First submission bonus
-        if (all[sectionKey].length === 1) {
+        if (_store.submissions[sectionKey].length === 1) {
             Leaderboard.addPoints(submission.rollNo, 5, sectionKey + '_first');
         }
         return submission;
     }
     function deleteSubmission(sectionKey, id) {
-        const all = getData('submissions');
-        if (!all[sectionKey]) return;
-        all[sectionKey] = all[sectionKey].filter(s => s.id !== id);
-        setData('submissions', all);
+        if (!_store.submissions || !_store.submissions[sectionKey]) return;
+        _store.submissions[sectionKey] = _store.submissions[sectionKey].filter(s => s.id !== id);
+        syncToServer();
     }
 
     function getBulk(sectionKey) {
-        const all = getData('bulk');
+        const all = _store.bulk || {};
         return all[sectionKey] || [];
     }
     function addBulk(sectionKey, entry) {
-        const all = getData('bulk');
-        if (!all[sectionKey]) all[sectionKey] = [];
+        if (!_store.bulk) _store.bulk = {};
+        if (!_store.bulk[sectionKey]) _store.bulk[sectionKey] = [];
         entry.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         entry.timestamp = new Date().toISOString();
-        all[sectionKey].unshift(entry);
-        setData('bulk', all);
+        _store.bulk[sectionKey].unshift(entry);
+        syncToServer();
         Leaderboard.addPoints(entry.rollNo, 25, sectionKey + '_bulk');
         return entry;
     }
     function deleteBulk(sectionKey, id) {
-        const all = getData('bulk');
-        if (!all[sectionKey]) return;
-        all[sectionKey] = all[sectionKey].filter(s => s.id !== id);
-        setData('bulk', all);
+        if (!_store.bulk || !_store.bulk[sectionKey]) return;
+        _store.bulk[sectionKey] = _store.bulk[sectionKey].filter(s => s.id !== id);
+        syncToServer();
     }
 
     function getSubmissionCount(sectionKey) {
@@ -222,6 +278,12 @@ const App = (() => {
         return then.toLocaleDateString();
     }
 
+    /* --- Refresh (re-fetch from server and re-render) --- */
+    async function refresh() {
+        await loadFromServer();
+        route();
+    }
+
     /* --- Init --- */
     function init() {
         const navbar = document.getElementById('navbar');
@@ -247,20 +309,24 @@ const App = (() => {
         // Route
         window.addEventListener('hashchange', route);
         route();
+
+        // Auto-refresh data every 30 seconds
+        setInterval(refresh, 30000);
     }
 
-    /* --- Boot --- */
-    function boot() {
+    /* --- Boot (async: load data from server first) --- */
+    async function boot() {
+        await loadFromServer();
         const authed = Auth.init();
         if (authed) init();
     }
 
     return {
-        boot, init, route, getConfig, saveConfig,
+        boot, init, route, refresh, getConfig, saveConfig,
         getSubmissions, addSubmission, deleteSubmission, getSubmissionCount,
         getBulk, addBulk, deleteBulk,
         openModal, closeModal, toast, renderMD, timeAgo,
-        CONFIG, getData, setData, STORAGE_KEYS,
+        CONFIG, getData, setData,
     };
 })();
 
