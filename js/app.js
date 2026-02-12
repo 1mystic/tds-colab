@@ -17,7 +17,8 @@ const App = (() => {
         links: [],
     };
 
-    /* --- Dual-Mode Storage: Server API (primary) + localStorage (fallback) --- */
+    /* --- Firebase RTDB REST API + localStorage fallback --- */
+    const FB_URL = 'https://tds-colab-default-rtdb.firebaseio.com';
     const LS_KEY = 'tds_store';
     let _store = {
         config: JSON.parse(JSON.stringify(CONFIG)),
@@ -25,7 +26,7 @@ const App = (() => {
         bulk: {},
         leaderboard: {},
     };
-    let _serverAvailable = false;
+    let _firebaseAvailable = false;
 
     function loadFromLocalStorage() {
         try {
@@ -50,46 +51,56 @@ const App = (() => {
 
     async function loadFromServer() {
         try {
-            const res = await fetch('/api/data');
+            const res = await fetch(`${FB_URL}/.json`);
             if (res.ok) {
                 const data = await res.json();
                 if (data && data.config) {
                     _store = data;
-                    _serverAvailable = true;
+                    _firebaseAvailable = true;
                     ensureStoreFields();
-                    saveToLocalStorage(); // cache locally
+                    saveToLocalStorage();
+                    return;
+                }
+                // Database exists but is empty — seed it with defaults
+                if (data === null) {
+                    _firebaseAvailable = true;
+                    ensureStoreFields();
+                    await fetch(`${FB_URL}/.json`, {
+                        method: 'PUT',
+                        body: JSON.stringify(_store),
+                    });
+                    saveToLocalStorage();
                     return;
                 }
             }
         } catch { }
         // Fallback: try localStorage
-        _serverAvailable = false;
+        _firebaseAvailable = false;
         const local = loadFromLocalStorage();
         if (local) {
             _store = local;
         }
         ensureStoreFields();
-        console.info(_serverAvailable ? 'Data loaded from server' : 'Using localStorage (server unavailable)');
+        console.info(_firebaseAvailable ? '☁ Firebase connected' : '💾 Using localStorage (offline mode)');
     }
 
-    function syncToServer() {
-        saveToLocalStorage(); // always cache locally
-        if (_serverAvailable) {
-            fetch('/api/data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(_store),
-            }).catch(() => { _serverAvailable = false; });
+    function syncKey(key) {
+        saveToLocalStorage();
+        if (_firebaseAvailable) {
+            fetch(`${FB_URL}/${key}.json`, {
+                method: 'PUT',
+                body: JSON.stringify(_store[key]),
+            }).catch(() => { });
         }
     }
 
-    /* --- Data Layer (reads from in-memory, writes sync to both) --- */
+    /* --- Data Layer --- */
     function getData(key) {
         return _store[key] || {};
     }
     function setData(key, data) {
         _store[key] = data;
-        syncToServer();
+        syncKey(key);
     }
 
     function getConfig() {
@@ -103,7 +114,7 @@ const App = (() => {
     }
     function saveConfig(cfg) {
         _store.config = cfg;
-        syncToServer();
+        syncKey('config');
     }
 
     function getSubmissions(sectionKey) {
@@ -116,7 +127,7 @@ const App = (() => {
         submission.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         submission.timestamp = new Date().toISOString();
         _store.submissions[sectionKey].unshift(submission);
-        syncToServer();
+        syncKey('submissions');
         Leaderboard.addPoints(submission.rollNo, 10, sectionKey);
         // First submission bonus
         if (_store.submissions[sectionKey].length === 1) {
@@ -127,7 +138,7 @@ const App = (() => {
     function deleteSubmission(sectionKey, id) {
         if (!_store.submissions || !_store.submissions[sectionKey]) return;
         _store.submissions[sectionKey] = _store.submissions[sectionKey].filter(s => s.id !== id);
-        syncToServer();
+        syncKey('submissions');
     }
 
     function getBulk(sectionKey) {
@@ -140,14 +151,14 @@ const App = (() => {
         entry.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         entry.timestamp = new Date().toISOString();
         _store.bulk[sectionKey].unshift(entry);
-        syncToServer();
+        syncKey('bulk');
         Leaderboard.addPoints(entry.rollNo, 25, sectionKey + '_bulk');
         return entry;
     }
     function deleteBulk(sectionKey, id) {
         if (!_store.bulk || !_store.bulk[sectionKey]) return;
         _store.bulk[sectionKey] = _store.bulk[sectionKey].filter(s => s.id !== id);
-        syncToServer();
+        syncKey('bulk');
     }
 
     function getSubmissionCount(sectionKey) {
