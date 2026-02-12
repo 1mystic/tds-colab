@@ -21,6 +21,7 @@ const Admin = (() => {
     const gaIds = Object.keys(cfg.ga).sort((a, b) => a - b);
     gaIds.forEach(id => {
       const ga = cfg.ga[id];
+      if (!ga) return;
       gaRows += `
             <div class="admin-row">
                 <span class="admin-label">${ga.name}</span>
@@ -35,6 +36,7 @@ const Admin = (() => {
     const projIds = Object.keys(cfg.projects).sort((a, b) => a - b);
     projIds.forEach(id => {
       const p = cfg.projects[id];
+      if (!p) return;
       projRows += `
             <div class="admin-row">
                 <span class="admin-label">${p.name}</span>
@@ -90,10 +92,12 @@ const Admin = (() => {
   function saveConfig() {
     const cfg = App.getConfig();
     for (const id of Object.keys(cfg.ga)) {
+      if (!cfg.ga[id]) continue;
       const el = document.getElementById(`cfg-ga-${id}`);
       if (el) cfg.ga[id].questions = parseInt(el.value) || 0;
     }
     for (const id of Object.keys(cfg.projects)) {
+      if (!cfg.projects[id]) continue;
       const el = document.getElementById(`cfg-proj-${id}`);
       if (el) cfg.projects[id].questions = parseInt(el.value) || 0;
     }

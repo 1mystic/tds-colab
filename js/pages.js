@@ -4,8 +4,8 @@ const Pages = (() => {
   /* ===== HOME PAGE ===== */
   function renderHome(container) {
     const cfg = App.getConfig();
-    const gaCount = Object.values(cfg.ga).filter(g => g.questions > 0).length;
-    const gaTotal = Object.keys(cfg.ga).length;
+    const gaCount = Object.values(cfg.ga).filter(g => g && g.questions > 0).length;
+    const gaTotal = Object.values(cfg.ga).filter(g => g).length;
 
     // Build project cards dynamically from config
     const projColors = [
@@ -25,6 +25,7 @@ const Pages = (() => {
     const projIds = Object.keys(cfg.projects).sort((a, b) => a - b);
     projIds.forEach((id, idx) => {
       const p = cfg.projects[id];
+      if (!p) return; // Skip nulls (from Firebase sparse arrays)
       const theme = projColors[idx % projColors.length];
       const icon = projIcons[idx % projIcons.length];
       projCardsHtml += `
@@ -96,6 +97,8 @@ const Pages = (() => {
     const gaIds = Object.keys(cfg.ga).sort((a, b) => a - b);
     gaIds.forEach((id, idx) => {
       const ga = cfg.ga[id];
+      if (!ga) return;
+
       const qCount = ga.questions;
       const totalSubs = countSectionSubmissions('ga', id, qCount);
       cardsHtml += `
