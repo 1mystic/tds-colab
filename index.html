@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TDS T1 26 : Collaboration Hub</title>
+  <meta name="description" content="Tools in Data Science T1 2026 : Collaborative assignment & project portal" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Auth Overlay -->
+  <div id="auth-overlay" class="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-glow"></div>
+      <div class="auth-icon">⟐</div>
+      <h1 class="auth-title">TDS T1 26</h1>
+      <p class="auth-subtitle">Tools in Data Science : Collaboration Hub</p>
+      <div class="auth-input-wrap">
+        <input type="text" id="roll-input" placeholder="Enter Roll Number" autocomplete="off" spellcheck="false" />
+        <div class="auth-input-line"></div>
+      </div>
+      <p id="auth-error" class="auth-error"></p>
+      <button id="auth-btn" class="auth-btn">
+        <span>Enter</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <p class="auth-hint">Format: 2xfyabcdef</p>
+    </div>
+  </div>
+
+  <!-- Navbar -->
+  <nav id="navbar" class="navbar hidden">
+    <div class="nav-left">
+      <a href="#/" class="nav-brand">TDS T1 26</a>
+      <div id="breadcrumb" class="breadcrumb"></div>
+    </div>
+    <div class="nav-right">
+      <span id="user-badge" class="user-badge"></span>
+      <a href="#/leaderboard" class="nav-btn leaderboard-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14 2 9.27l6.91-1.01z"/></svg>
+        <span>Leaderboard</span>
+      </a>
+      <button id="logout-btn" class="nav-btn logout-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main App Container -->
+  <main id="app" class="app hidden"></main>
+
+  <!-- Submission Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-title">New Submission</h2>
+        <button id="modal-close" class="modal-close">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/pages.js"></script>
+  <script src="js/leaderboard.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
