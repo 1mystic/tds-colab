@@ -10,7 +10,7 @@ const Admin = (() => {
   };
 
   /* ============================================
-     CONFIG MODAL : Overview of all GAs + Projects
+     CONFIG MODAL : Overview of all GAs + Projects + ROE
      ============================================ */
   function openConfigModal() {
     if (!Auth.isAdmin()) return;
@@ -44,6 +44,19 @@ const Admin = (() => {
             </div>`;
     });
 
+    // ROE section
+    const roe = cfg.roe || { enabled: false, questions: 0 };
+    const roeHtml = `
+        <div class="admin-row">
+            <span class="admin-label">ROE</span>
+            <input type="number" id="cfg-roe-q" class="admin-input" value="${roe.questions}" min="0" placeholder="# Q" />
+            <label class="admin-toggle" title="${roe.enabled ? 'Visible' : 'Hidden'}">
+                <input type="checkbox" id="cfg-roe-enabled" ${roe.enabled ? 'checked' : ''} />
+                <span class="toggle-slider"></span>
+            </label>
+            <span style="font-size:11px;color:var(--text-muted);">${roe.enabled ? 'Visible' : 'Hidden'}</span>
+        </div>`;
+
     const html = `
         <div class="admin-section">
             <div class="admin-section-header">
@@ -58,6 +71,12 @@ const Admin = (() => {
                 <button class="btn btn-ghost btn-sm" onclick="Admin.openAddModal('project')">${ICONS.plus} Add Project</button>
             </div>
             ${projRows || '<p style="color:var(--text-muted);font-size:13px;">No projects configured.</p>'}
+        </div>
+        <div class="admin-section">
+            <div class="admin-section-header">
+                <h3>ROE (End Exam)</h3>
+            </div>
+            ${roeHtml}
         </div>
         <div class="form-actions">
             <button class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
@@ -78,6 +97,12 @@ const Admin = (() => {
       const el = document.getElementById(`cfg-proj-${id}`);
       if (el) cfg.projects[id].questions = parseInt(el.value) || 0;
     }
+    // ROE
+    const roeQ = document.getElementById('cfg-roe-q');
+    const roeEnabled = document.getElementById('cfg-roe-enabled');
+    if (roeQ) cfg.roe.questions = parseInt(roeQ.value) || 0;
+    if (roeEnabled) cfg.roe.enabled = roeEnabled.checked;
+
     App.saveConfig(cfg);
     App.closeModal();
     App.toast('Configuration saved!', 'success');
@@ -118,7 +143,6 @@ const Admin = (() => {
     }
 
     const collection = type === 'ga' ? cfg.ga : cfg.projects;
-    // Find next available ID
     const ids = Object.keys(collection).map(Number);
     const nextId = ids.length > 0 ? Math.max(...ids) + 1 : 1;
 
@@ -165,7 +189,6 @@ const Admin = (() => {
     }
     App.saveConfig(cfg);
     App.toast(`Renamed to "${newName}"`, 'success');
-    // Re-open config modal to show updated name
     openConfigModal();
   }
 
@@ -186,7 +209,6 @@ const Admin = (() => {
     }
     App.saveConfig(cfg);
     App.toast(`${section.name} deleted`, 'info');
-    // Re-open config modal
     openConfigModal();
   }
 
@@ -196,8 +218,16 @@ const Admin = (() => {
   function openEditQuestions(type, id) {
     if (!Auth.isAdmin()) return;
     const cfg = App.getConfig();
-    const section = type === 'ga' ? cfg.ga[id] : cfg.projects[id];
-    const label = type === 'ga' ? section.name : section.name;
+    let section, label;
+
+    if (type === 'roe') {
+      section = cfg.roe;
+      label = 'ROE';
+    } else {
+      section = type === 'ga' ? cfg.ga[id] : cfg.projects[id];
+      label = section ? section.name : `${type} ${id}`;
+    }
+    if (!section) return;
 
     const html = `
         <div class="form-group">
@@ -217,7 +247,9 @@ const Admin = (() => {
   function saveQuestionCount(type, id) {
     const cfg = App.getConfig();
     const val = parseInt(document.getElementById('edit-q-count').value) || 0;
-    if (type === 'ga') {
+    if (type === 'roe') {
+      cfg.roe.questions = val;
+    } else if (type === 'ga') {
       cfg.ga[id].questions = val;
     } else {
       cfg.projects[id].questions = val;
@@ -228,12 +260,71 @@ const Admin = (() => {
     App.route();
   }
 
+  /* ============================================
+     USEFUL LINKS CRUD
+     ============================================ */
+  function openAddLinkModal() {
+    if (!Auth.isAdmin()) return;
+    const html = `
+        <div class="form-group">
+            <label class="form-label">Link Title</label>
+            <input type="text" id="link-title" class="form-textarea" style="min-height:auto;padding:10px 14px;" 
+                   placeholder="e.g. Course Dashboard" />
+        </div>
+        <div class="form-group">
+            <label class="form-label">URL</label>
+            <input type="url" id="link-url" class="form-textarea" style="min-height:auto;padding:10px 14px;" 
+                   placeholder="https://..." />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Description (optional)</label>
+            <input type="text" id="link-desc" class="form-textarea" style="min-height:auto;padding:10px 14px;" 
+                   placeholder="Short description" />
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="Admin.addLink()">Add Link</button>
+        </div>`;
+    App.openModal('Add Useful Link', html);
+  }
+
+  function addLink() {
+    const title = document.getElementById('link-title').value.trim();
+    const url = document.getElementById('link-url').value.trim();
+    const desc = document.getElementById('link-desc').value.trim();
+
+    if (!title || !url) {
+      App.toast('Title and URL are required', 'error');
+      return;
+    }
+
+    const cfg = App.getConfig();
+    if (!cfg.links) cfg.links = [];
+    cfg.links.push({ title, url, desc });
+    App.saveConfig(cfg);
+    App.closeModal();
+    App.toast('Link added!', 'success');
+    App.route();
+  }
+
+  function deleteLink(index) {
+    if (!Auth.isAdmin()) return;
+    const cfg = App.getConfig();
+    if (!cfg.links || index < 0 || index >= cfg.links.length) return;
+    if (!confirm(`Delete link "${cfg.links[index].title}"?`)) return;
+    cfg.links.splice(index, 1);
+    App.saveConfig(cfg);
+    App.toast('Link deleted', 'info');
+    App.route();
+  }
+
   return {
     openConfigModal, saveConfig,
     openAddModal, addSection,
     openRenameModal, renameSection,
     deleteSection,
     openEditQuestions, saveQuestionCount,
+    openAddLinkModal, addLink, deleteLink,
     ICONS,
   };
 })();
